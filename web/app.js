@@ -318,4 +318,49 @@ function bind(){
  $('node-search').onkeydown=e=>{if(e.key!=='Enter'||!state.tree)return;const q=e.target.value.toLowerCase().trim();if(!q)return;const n=state.tree.nodes.find(n=>!n.deleted&&n.san.toLowerCase().includes(q));if(n){state.depthLimit=Math.max(state.depthLimit,n.depth);$('view-depth').value=state.depthLimit;$('view-depth-label').textContent=state.depthLimit;let k=n.parent;while(k>=0){state.expanded.add(k);state.collapsed.delete(k);k=state.tree.nodes[k].parent;}graphRender();selectNode(n.id);focusedNode(n.id)}else{toast('No matching move found.',true)}};
 }
 async function init(){bind();engineVisibility();await loadMeta();await tokenStatus().catch(e=>toast(e.message,true));await syncBoard();await poll();setInterval(poll,1200)}
+$('quit-application').addEventListener('click', () => quitApplication().catch(e => toast(e.message,true)));
+// Browser window lifecycle. EventSource stays connected even in background tabs;
+// unlike polling timers it is not paused by background-tab throttling.
+let appBrowserSession = '';
+let appBrowserEvents = null;
+let appIsQuitting = false;
+function connectAppLifecycle() {
+  if (appIsQuitting || appBrowserEvents) return;
+  const stream = new EventSource('/api/lifecycle/events');
+  appBrowserEvents = stream;
+  stream.addEventListener('session', event => { appBrowserSession = event.data; });
+  stream.addEventListener('error', () => {
+    // EventSource automatically reconnects after a transient interruption.
+    // No secret or heartbeat is saved in browser storage.
+    appBrowserSession = '';
+  });
+}
+function releaseAppLifecycle() {
+  const session = appBrowserSession;
+  appBrowserSession = '';
+  if (appBrowserEvents) { appBrowserEvents.close(); appBrowserEvents = null; }
+  if (session) {
+    // The beacon is best-effort; closing the SSE stream is the primary signal.
+    const payload = new Blob([JSON.stringify({session})], {type:'application/json'});
+    navigator.sendBeacon?.('/api/lifecycle/close', payload);
+  }
+}
+window.addEventListener('pagehide', releaseAppLifecycle);
+window.addEventListener('pageshow', event => { if (event.persisted) connectAppLifecycle(); });
+async function quitApplication() {
+  if (appIsQuitting) return;
+  if (!appBrowserSession) { alert('Connecting to the local application. Please retry in a moment.'); return; }
+  if (!confirm('Quit this application? Any running analysis will be cancelled.')) return;
+  const response = await fetch('/api/lifecycle/quit', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({session:appBrowserSession}), cache:'no-store'
+  });
+  if (!response.ok) throw Error('Unable to close the application ('+response.status+').');
+  appIsQuitting = true;
+  releaseAppLifecycle();
+  document.body.innerHTML = '<main style="min-height:100vh;display:grid;place-content:center;text-align:center;gap:12px;background:#111b20;color:#e7eedc;font:16px system-ui,sans-serif"><h1 style="margin:0">Application closed</h1><p style="margin:0;color:#9cb3a9">The local server has stopped. You can close this tab.</p></main>';
+  try { window.close(); } catch (_) { /* Browsers generally restrict closing manually opened tabs. */ }
+}
+connectAppLifecycle();
+
 init();

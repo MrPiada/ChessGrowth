@@ -14,15 +14,17 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
 //go:embed web/* assets/*
 var content embed.FS
-var version = "1.2.0"
+var version = "1.3.0"
 
 type application struct {
 	live                                           []LiveNode
@@ -37,10 +39,11 @@ type application struct {
 	undo                                           [][]int
 	cancel                                         context.CancelFunc
 	tokens                                         tokenStore
+	lifecycle                                      *browserLifecycle
 }
 
 func newApplication() *application {
-	return &application{phase: "idle", message: "Configure an opening to begin.", tokens: newTokenStore()}
+	return &application{phase: "idle", message: "Configure an opening to begin.", tokens: newTokenStore(), lifecycle: newBrowserLifecycle(false, 6*time.Second, nil)}
 }
 func respond(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -94,6 +97,7 @@ func (a *application) handlers() http.Handler {
 	if e != nil {
 		panic(e)
 	}
+	mux.Handle("/api/lifecycle/", a.lifecycle)
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assetFS))))
 	mux.Handle("/", http.FileServer(http.FS(webFS)))
 	mux.HandleFunc("/api/meta", func(w http.ResponseWriter, r *http.Request) {
@@ -502,14 +506,47 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &http.Server{Handler: newApplication().handlers(), ReadHeaderTimeout: 10 * time.Second}
+	app := newApplication()
+	s := &http.Server{Handler: app.handlers(), ReadHeaderTimeout: 10 * time.Second}
+	appCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	shutdown := sync.OnceFunc(func() {
+		app.mu.Lock()
+		if app.cancel != nil {
+			app.cancel()
+		}
+		app.mu.Unlock()
+		app.lifecycle.closeAll()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.Shutdown(ctx); err != nil {
+			_ = s.Close()
+		}
+	})
+	app.lifecycle = newBrowserLifecycle(!*noOpen, 6*time.Second, func() {
+		log.Println("Last ChessGrowth browser window closed; stopping local server")
+		time.Sleep(100 * time.Millisecond)
+		shutdown()
+	})
+	s.Handler = app.handlers()
+	go app.lifecycle.watch(appCtx)
+	go func() { <-appCtx.Done(); shutdown() }()
 	url := "http://" + listener.Addr().String()
 	fmt.Println("ChessGrowth", version, "is running at", url)
-	fmt.Println("Press Ctrl+C to stop.")
-	if !*noOpen {
-		go func() { time.Sleep(300 * time.Millisecond); openBrowser(url) }()
+	if *noOpen {
+		fmt.Println("Headless mode: close with Ctrl+C (browser auto-exit disabled)")
+	} else {
+		fmt.Println("Close the browser tab or click Quit application to exit.")
 	}
-	if err = s.Serve(listener); err != nil && err != http.ErrServerClosed {
+	if !*noOpen {
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			if appCtx.Err() == nil {
+				openBrowser(url)
+			}
+		}()
+	}
+	if err = s.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }

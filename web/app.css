@@ -122,3 +122,6 @@ main{flex:1;min-height:0;overflow:hidden;padding:26px 34px 20px}.page{height:100
 /* Flex panels must not squeeze the inspector SVG as their contents grow. */
 .inspector-board{width:185px;max-width:185px;height:185px;min-height:185px;flex:0 0 auto;align-self:center;margin:0 auto}
 @media(max-width:850px){.inspector-board{width:min(100%,250px);max-width:250px;height:auto;min-height:0}}
+
+/* v1.3: quit the native Go server together with the browser application. */
+.quit-app-button{background:#3d2929!important;color:#ffd7cf!important;border-color:#96615e!important;font-size:11px!important}.quit-app-button:hover{background:#643937!important}.top-right{gap:8px}.top-right .version{margin-left:3px}@media(max-width:1000px){#system-status{display:none}}

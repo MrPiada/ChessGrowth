@@ -27,6 +27,11 @@
 
 Download the package for your operating system from **[GitHub Releases](https://github.com/MrPiada/ChessGrowth/releases/latest)**. Windows (`.exe`/optional `Setup.exe`), macOS (`.app`/`.dmg`), Ubuntu (`.deb`) and portable Linux binaries are supported. ChessGrowth runs a **localhost-only** web UI and opens your browser automatically.
 
+### Closing ChessGrowth
+
+Use **Quit application** in the top-right corner to stop the Go backend immediately (active generation is cancelled). Alternatively, simply **close the last ChessGrowth browser tab/window**; the application will exit automatically after a **six-second grace period** so that refreshes or switching between tabs cannot accidentally terminate it. Multiple ChessGrowth tabs are supported. A persistent browser-to-server connection detects closure without battery-draining polling; a lost connection lasting more than the grace period can also terminate the app. This closes **ChessGrowth only**, not your normal browser or other tabs. If launched headlessly with `--no-open`, automatic exit is disabled; stop with **Ctrl+C**.
+
+
 Alternatively, install **Go 1.23+** and run:
 
 ```bash
@@ -73,17 +78,17 @@ Do not commit credentials to Git and grant only the token permissions you need.
 
 ```bash
 brew install go gh python makensis
-./scripts/build-release.sh v1.2.0
+./scripts/build-release.sh v1.3.0
 ```
 
 The build produces macOS Intel/Apple Silicon ZIPs and DMGs, Windows x64 ZIP and (with NSIS) `Setup.exe`, Ubuntu x64/ARM64 `.deb`, Linux TAR.GZ and SHA-256 checksums. A Windows development machine is **not** needed for cross-compilation. Binaries embed the HTML/CSS/JS and SVG chess pieces; executable icons are packaged for the native desktop environments. Stockfish is **not** bundled.
 
-**Publish a release from an existing clone:** after testing and committing the source, tag `v1.2.0` and run:
+**Publish a release from an existing clone:** after testing and committing the source, tag `v1.3.0` and run:
 
 ```bash
-gh release create v1.2.0 dist/ChessGrowth-v1.2.0-* dist/SHA256SUMS.txt \
-  --verify-tag --title "ChessGrowth v1.2.0" \
-  --notes-file RELEASE_NOTES_v1.2.0.md --latest
+gh release create v1.3.0 dist/ChessGrowth-v1.3.0-* dist/SHA256SUMS.txt \
+  --verify-tag --title "ChessGrowth v1.3.0" \
+  --notes-file RELEASE_NOTES_v1.3.0.md --latest
 ```
 
 These installers are **unsigned and unnotarized**. Verify app behavior on the actual operating systems before making a stable release.

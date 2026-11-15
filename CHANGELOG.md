@@ -1,3 +1,7 @@
+## 1.3.0
+
+- Browser-window lifecycle: close last UI tab to stop server; Quit application button, multiple-tab support, reload grace and safe headless behavior.
+
 ## v1.2.0 — Fixed SVG board and deduplicated transpositions
 
 - Fixed-size single-SVG board and inspector chessboard sizing; no piece-related layout shifts.
