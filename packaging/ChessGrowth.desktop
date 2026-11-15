@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=ChessGrowth
+Comment=Grow and refine your chess opening repertoire
+Exec=ChessGrowth
+Icon=chessgrowth
+Terminal=false
+Type=Application
+Categories=Game;Education;
+StartupNotify=true

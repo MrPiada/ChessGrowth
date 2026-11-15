@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111a20">
+<title>ChessGrowth — Grow a smarter repertoire</title>
+<link rel="icon" type="image/png" href="/assets/chessgrowth-icon.png">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="app">
+<header class="topbar">
+  <div class="brand"><img src="/assets/chessgrowth-icon.png" alt="ChessGrowth icon"><div><strong>Chess<span>Growth</span></strong><small>REPERTOIRE STUDIO</small></div></div>
+  <nav class="tabs" aria-label="Application sections">
+    <button type="button" id="tab-setup" class="tab active" aria-selected="true">01 <span>Setup &amp; Analysis</span></button>
+    <button type="button" id="tab-results" class="tab" aria-selected="false">02 <span>Opening Tree</span></button>
+  </nav>
+  <div class="top-right"><span id="connection-dot" class="dot"></span><span id="system-status">Ready to configure</span><span class="version" id="app-version">v1.2.0</span></div>
+</header>
+<main>
+<section id="page-setup" class="page active">
+  <div class="section-heading"><div><div class="eyebrow">CREATE A REPERTOIRE</div><h1>Start with the position. <em>Grow from there.</em></h1><p>Choose your side and opening position; let Lichess statistics and engine evaluations guide the branches.</p></div><span class="section-tag">STANDARD CHESS</span></div>
+  <div class="setup-layout">
+    <aside class="board-panel surface">
+      <div class="panel-heading"><div><h2>Starting position</h2><p>Play legal moves or paste a FEN.</p></div><span id="side-to-move" class="small-pill">White to move</span></div>
+      <div id="chessboard" class="chessboard" role="grid" aria-label="Interactive chessboard"></div>
+      <div class="board-actions"><button id="undo-move" class="mini-btn" type="button">↶ Undo move</button><button id="reset-board" class="mini-btn" type="button">↺ Reset</button><button id="flip-board" class="mini-btn" type="button">⇅ Flip board</button></div>
+      <div class="field compact"><label for="fen-input">FEN · EDITABLE</label><div class="inline-field"><input type="text" id="fen-input" spellcheck="false" autocomplete="off" aria-label="FEN position"><button type="button" id="load-fen" class="mini-btn accent-outline">Apply</button></div></div>
+      <div class="field compact"><label for="moves-input">OPTIONAL MOVES · SAN OR UCI</label><div class="inline-field"><input type="text" id="moves-input" placeholder="e4 e5 Nf3 Nc6 Bb5" autocomplete="off" aria-label="Paste a move sequence"><button id="apply-moves" class="mini-btn accent-outline" type="button">Play</button></div></div>
+      <div class="move-history" id="move-history">The starting position is ready.</div>
+    </aside>
+    <div class="settings-panel">
+      <div class="settings-grid">
+        <section class="surface config-section" id="repertoire-settings"><div class="config-heading"><div class="config-number">01</div><div><h2>Repertoire</h2><p>The side and name of your study.</p></div></div>
+          <div class="field"><label for="event-name">REPERTOIRE NAME</label><input id="event-name" value="My ChessGrowth Repertoire" maxlength="80"></div>
+          <div class="field"><label>PLAY FOR</label><div class="segmented" role="group" aria-label="Repertoire color"><button class="segment active" type="button" data-color="white">♔ White</button><button class="segment" type="button" data-color="black">♚ Black</button></div></div>
+        </section>
+        <section class="surface config-section"><div class="config-heading"><div class="config-number">02</div><div><h2>Lichess database</h2><p>Filter how your opponents actually play.</p></div></div>
+          <div class="field"><label>TIME CONTROLS</label><div class="chip-list" id="speed-options">
+            <label class="chip"><input type="checkbox" value="bullet"> Bullet</label><label class="chip"><input type="checkbox" value="blitz" checked> Blitz</label><label class="chip"><input type="checkbox" value="rapid" checked> Rapid</label><label class="chip"><input type="checkbox" value="classical"> Classical</label>
+          </div></div>
+          <div class="field"><label>RATING RANGE</label><div class="chip-list" id="rating-options">
+            <label class="chip"><input type="checkbox" value="1600"> 1600</label><label class="chip"><input type="checkbox" value="1800" checked> 1800</label><label class="chip"><input type="checkbox" value="2000" checked> 2000</label><label class="chip"><input type="checkbox" value="2200" checked> 2200</label><label class="chip"><input type="checkbox" value="2500"> 2500+</label>
+          </div></div>
+        </section>
+        <section class="surface config-section"><div class="config-heading"><div class="config-number">03</div><div><h2>Branching logic</h2><p>Keep realistic replies, prevent runaway growth.</p></div></div>
+          <div class="field wide"><label for="coverage">OPPONENT COVERAGE <b id="coverage-label">85%</b></label><input id="coverage" type="range" min="50" max="100" value="85" step="5"><div class="range-labels"><span>Selective · 50%</span><span>Comprehensive · 100%</span></div></div>
+          <div class="four-grid"><div class="field"><label for="max-depth">MAX PLY</label><input type="number" id="max-depth" value="12" min="1" max="50"></div><div class="field"><label for="max-nodes">MAX NODES</label><input type="number" id="max-nodes" value="250" min="2" max="5000"></div><div class="field"><label for="min-games">MIN GAMES</label><input type="number" id="min-games" value="10" min="0"></div><div class="field"><label for="delay-ms">DELAY · MS</label><input type="number" id="delay-ms" value="600" min="300" max="20000"></div></div>
+        </section>
+        <section class="surface config-section"><div class="config-heading"><div class="config-number">04</div><div><h2>Move evaluation</h2><p>Find solid moves with good practical results.</p></div></div>
+          <div class="field"><label for="engine-mode">EVALUATION SOURCE</label><select id="engine-mode"><option value="cloud">Lichess Cloud (online)</option><option value="hybrid">Cloud → Stockfish fallback</option><option value="local">Stockfish only (local)</option><option value="practical">Statistics only (no engine)</option></select></div>
+          <div class="four-grid"><div class="field"><label for="engine-lines">TOP LINES</label><input type="number" id="engine-lines" min="1" max="20" value="3"></div><div class="field"><label for="engine-threshold">MAX LOSS · PAWNS</label><input type="number" id="engine-threshold" min="0" max="20" step="0.1" value="0.8"></div><div class="field"><label for="candidates">CANDIDATES</label><input type="number" id="candidates" min="1" max="40" value="10"></div><div class="field"><label for="stockfish-depth">ENGINE DEPTH</label><input type="number" id="stockfish-depth" min="5" max="35" value="16"></div></div>
+          <div class="engine-extra">
+            <div id="local-engine-panel" class="local-engine-panel"><div id="stockfish-hint" role="status">Checking Stockfish…</div><div class="inline-field"><input id="stockfish-path" placeholder="Optional Stockfish executable path" autocomplete="off" aria-label="Stockfish executable path"><button id="check-stockfish" class="mini-btn accent-outline" type="button">Recheck</button></div></div>
+            <div class="credential-panel"><div class="credential-heading"><b>LICHESS TOKEN <small>(optional)</small></b><span id="token-state" role="status">Checking…</span></div><div class="inline-field"><input id="lichess-token" type="password" placeholder="Paste token to save for this user" autocomplete="new-password" spellcheck="false" aria-label="Lichess personal API token"><button id="save-token" class="mini-btn accent-outline" type="button">Save</button><button id="forget-token" class="mini-btn" type="button">Forget</button></div><div class="credential-help">Saved for your user only · never included in exports or GitHub. <a href="https://lichess.org/account/oauth/token" target="_blank" rel="noopener noreferrer">Manage tokens ↗</a></div></div>
+          </div>
+        </section>
+      </div>
+      <div class="action-tray surface"><div class="action-status"><span class="action-icon">↗</span><div><strong id="analysis-heading">Ready to grow</strong><span id="analysis-message">No Python. No project setup. Just your opening.</span></div></div><div class="actions"><button id="cancel-analysis" class="btn btn-outline" type="button" hidden>Stop</button><button id="generate" class="btn btn-primary" type="button">Generate repertoire <span>→</span></button></div></div>
+    </div>
+  </div>
+  <div id="progress-overlay" class="progress-overlay" hidden>
+   <div class="progress-dialog surface" role="status" aria-live="polite">
+    <div class="progress-top"><div><div class="eyebrow">LIVE REPERTOIRE GENERATION</div><h2>Watch your opening tree grow</h2><p id="progress-phase">Preparing analysis…</p></div><button id="cancel-progress" class="mini-btn" type="button">Stop generation</button></div>
+    <div class="progress-metrics"><div><b id="progress-nodes">0</b><span>Nodes discovered</span></div><div><b id="progress-processed">0</b><span>Positions processed</span></div><div><b id="progress-pending">0</b><span>Queued branches</span></div><div><b id="progress-depth">0</b><span>Deepest ply</span></div><div><b id="progress-requests">0</b><span>Lichess requests</span></div><div><b id="progress-local">0</b><span>Local evaluations</span></div><div><b id="progress-transpositions">0</b><span>Transpositions reused</span></div></div>
+    <div class="progress-bar-title"><b>Explored search frontier</b><span id="frontier-percent">—</span></div><div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+    <div class="progress-bar-title budget"><b>Node budget used</b><span id="budget-percent">0%</span></div><div class="progress-track budget"><div id="budget-fill" class="progress-fill budget-fill"></div></div>
+    <div class="live-tree-title"><b>Branching preview</b><span><i class="legend-good"></i> Favorable · <i class="legend-bad"></i> Unfavorable · <i class="legend-unknown"></i> Unscored · ↪ Transposition</span></div>
+    <div class="live-tree-container" id="live-tree-viewport"><svg id="live-tree-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 290" role="img" aria-label="Live expanding repertoire graph"></svg></div>
+    <p class="progress-caption">Frontier percentage is a live estimate, not an exact completion time. The tree may finish before reaching the node limit.</p>
+   </div>
+  </div>
+</section>
+<section id="page-results" class="page">
+ <div class="results-head"><div><div class="eyebrow">REVIEW & REFINE</div><h1>Opening tree <span class="results-muted">/ Grow only what matters</span></h1></div>
+  <div class="results-tools"><span class="stat-pill"><b id="stat-nodes">—</b> active nodes</span><span class="stat-pill"><b id="stat-leaves">—</b> lines</span><button id="undo-prune" type="button" class="mini-btn">↶ Undo prune</button><a class="btn btn-outline small" href="/api/export/json" download>Export JSON</a><a class="btn btn-primary small" href="/api/export/pgn" download>Export PGN ↓</a></div>
+ </div>
+ <div class="result-layout">
+   <section class="surface graph-panel"><div class="graph-bar"><div class="graph-label"><span class="green-dot"></span><b>Repertoire graph</b><small id="graph-subtitle">Select a move to inspect its branch</small></div><div class="graph-tools"><input id="node-search" placeholder="Find a move…" aria-label="Search moves"><button id="zoom-out" class="mini-btn" type="button">−</button><span id="zoom-level">100%</span><button id="zoom-in" class="mini-btn" type="button">+</button><button id="zoom-fit" class="mini-btn" type="button">Fit</button></div></div>
+   <div class="graph-controls"><label for="view-depth">Show plies <strong id="view-depth-label">12</strong></label><input id="view-depth" type="range" min="1" max="50" value="12"><label for="collapse-depth">Collapse at ply <strong id="collapse-depth-label">8</strong></label><input id="collapse-depth" type="range" min="1" max="50" value="8"><button id="expand-all" class="mini-btn" type="button">Expand all</button><button id="collapse-all" class="mini-btn" type="button">Collapse by depth</button></div>
+   <div id="move-ruler" class="move-ruler"><div id="move-ruler-inner"></div></div>
+   <div id="graph-scroller" class="graph-scroller"><svg id="tree-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Interactive chess repertoire tree"></svg><div id="graph-empty" class="graph-empty"><span>♞</span><h2>Your repertoire will grow here.</h2><p>Set your starting position and parameters, then choose Generate repertoire.</p></div></div>
+   <div class="graph-footer"><span>● Your move</span><span>● Opponent reply</span><span>Click any node to inspect · Prune removes the entire branch</span></div></section>
+   <aside class="surface inspector"><div class="inspector-heading"><div><div class="eyebrow">POSITION INSPECTOR</div><h2 id="selected-move">Starting position</h2></div><span id="selected-ply" class="small-pill">Root</span></div>
+     <div id="inspector-board" class="inspector-board"></div>
+     <div class="inspector-opening" id="inspector-opening">Opening not identified</div>
+     <div class="inspector-info"><div class="metric"><span>Move frequency</span><b id="inspector-frequency">—</b></div><div class="metric"><span>Lichess games</span><b id="inspector-games">—</b></div><div class="metric"><span>Evaluation (white POV)</span><b id="inspector-eval">—</b></div><div class="metric"><span>Descendants</span><b id="inspector-descendants">—</b></div></div>
+     <div class="wdl-box"><div class="wdl-heading"><b>Lichess outcomes</b><span>Selected rating and time-control filters</span></div><div class="wdl-bar" id="inspector-wdl-bar"><span style="width:0%"></span><span style="width:0%"></span><span style="width:0%"></span></div><div class="wdl-labels"><span id="inspector-white">White —</span><span id="inspector-draw">Draw —</span><span id="inspector-black">Black —</span></div></div>
+     <div id="inspector-eval-source" class="eval-source">Engine source appears here</div>
+     <div id="inspector-trap" class="trap-label">Trap: unverified</div>
+     <div id="inspector-note" class="inspector-note">Select a node in the tree to inspect its position and remove unwanted continuations.</div>
+     <div class="inspector-actions"><button id="prune-branch" class="btn btn-danger" type="button" disabled>Remove entire branch</button><p>This removes the selected move and every continuation below it from PGN exports. Undo is available.</p></div>
+   </aside>
+ </div>
+ <div class="foot-note" id="results-warning">Engine scores and game statistics are estimates; always review your repertoire before playing.</div>
+</section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

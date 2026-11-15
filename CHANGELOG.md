@@ -1,0 +1,25 @@
+## v1.2.0 — Fixed SVG board and deduplicated transpositions
+
+- Fixed-size single-SVG board and inspector chessboard sizing; no piece-related layout shifts.
+- Labeled, evaluation-colored live branching preview with scrollable recent branch sampling.
+- Normalized FEN identity (board, turn, castling, legal en passant) and cached Explorer/evaluations once per unique position.
+- Canonical transposition pointers in report JSON and PGN, plus live deduplication counter.
+- Refreshed screenshots, README, tests and multiplatform build script.
+
+# Changelog
+
+## v1.1.0 — Live growth & annotated PGN
+
+- Stable SVG chess-piece rendering, independent of operating-system fonts.
+- Live progress tree with search-frontier estimate, queued positions and engine/API counters.
+- Removed all user-facing demo functionality and the demo HTTP endpoint.
+- Engine evaluation of all retained nodes including opponent replies; hybrid Cloud-to-local fallback remains supported.
+- PGN evaluation directives, Lichess White/Draw/Black percentages, filters, heuristic trap labels, opening metadata.
+- Graph depth/collapse controls, move-number ruler, individual branch toggles and richer position inspector.
+- Expanded validation and packaging for macOS, Windows and Linux.
+
+## v1.0.0 — First native distribution
+
+- Go backend, native packaging and interactive opening-board setup.
+- Lichess Explorer and Cloud, optional local Stockfish, pruning and PGN/JSON export.
+- Persistent optional Lichess token storage in OS user settings.

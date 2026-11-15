@@ -1,0 +1,19 @@
+/dist/
+*.log
+*.pgn
+*.json
+!.github/**
+.DS_Store
+.idea/
+.vscode/
+
+/.chessgrowth-dev
+/ChessGrowth-linux-arm64
+/server.log
+/server.pid
+
+# Credentials and local environment files should never enter the repository
+.env
+.env.*
+lichess-token
+*.secret
