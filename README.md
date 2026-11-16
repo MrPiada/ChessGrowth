@@ -1,3 +1,6 @@
+<img width="1774" height="887" alt="ChessGrowth_ crescita del repertorio scacchistico" src="https://github.com/user-attachments/assets/22a9c94f-ea90-4f6b-9fda-8f46538ca7d3" />
+
+
 ## Reliable analysis (v1.3.1)
 
 **Recommended mode:** `Cloud → Stockfish fallback` with Stockfish installed (`brew install stockfish` on macOS, `sudo apt install stockfish` on Ubuntu, or choose a Windows Stockfish executable).
