@@ -57,7 +57,7 @@ function num(id){return Number($(id).value)}
 function settings(){return {
  start_fen:state.fen,color:state.color,speeds:selectedValues('speed-options'),ratings:selectedValues('rating-options',true),
  max_depth:num('max-depth'),max_nodes:num('max-nodes'),coverage:num('coverage'),min_games:num('min-games'),delay_ms:num('delay-ms'),
- engine_mode:$('engine-mode').value,engine_lines:num('engine-lines'),engine_threshold:num('engine-threshold'),
+ resume:$('resume-generation').checked,engine_mode:$('engine-mode').value,engine_lines:num('engine-lines'),engine_threshold:num('engine-threshold'),
  candidates:num('candidates'),stockfish_depth:num('stockfish-depth'),stockfish_path:$('stockfish-path').value.trim(),event:$('event-name').value.trim()
 }}
 const stockfishState={available:false,platform:'linux',path:''};

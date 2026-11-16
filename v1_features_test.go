@@ -131,8 +131,8 @@ func TestCloudFallbackToStockfishAndDoNotLeakToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if explorerAuth != "" {
-		t.Fatalf("token leaked to Opening Explorer: %q", explorerAuth)
+	if explorerAuth != "Bearer lip_privateOnly123" {
+		t.Fatalf("official Opening Explorer missing authentication: %q", explorerAuth)
 	}
 	e, err := g.eval(context.Background(), initialFEN)
 	if err != nil {

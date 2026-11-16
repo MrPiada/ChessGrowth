@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -36,10 +37,11 @@ type Config struct {
 	Candidates      int      `json:"candidates"`
 	DelayMS         int      `json:"delay_ms"`
 	Event           string   `json:"event"`
+	Resume          bool     `json:"resume"`
 }
 
 func defaults() Config {
-	return Config{StartFEN: initialFEN, Color: "white", Speeds: []string{"blitz", "rapid"}, Ratings: []int{1800, 2000, 2200}, MaxDepth: 12, MaxNodes: 250, Coverage: 85, MinGames: 10, EngineLines: 3, EngineThreshold: 0.8, EngineMode: "cloud", StockfishDepth: 16, Candidates: 10, DelayMS: 600, Event: "ChessGrowth"}
+	return Config{StartFEN: initialFEN, Color: "white", Speeds: []string{"blitz", "rapid"}, Ratings: []int{1800, 2000, 2200}, MaxDepth: 12, MaxNodes: 250, Coverage: 85, MinGames: 10, EngineLines: 3, EngineThreshold: 0.8, EngineMode: "cloud", StockfishDepth: 16, Candidates: 10, DelayMS: 600, Event: "ChessGrowth", Resume: true}
 }
 func (c *Config) validate() error {
 	if c.StartFEN == "" {
@@ -266,7 +268,12 @@ type generator struct {
 	transpositions         int
 	localCount, cloudCount int
 	lastLive               time.Time
+	cloudDisabled          bool
+	cooldownLoaded         bool
+	cooldown               apiCooldown
+	progressNodes          int
 	token                  string
+	credentialError        error
 	stockfishFn            func(context.Context, string, string, int) (int, error)
 }
 
@@ -277,18 +284,22 @@ func newGenerator(c Config, cb func(int, int, string)) *generator {
 	}
 	dir = filepath.Join(dir, "ChessGrowth", "api")
 	_ = os.MkdirAll(dir, 0700)
-	token, _, e := activeToken(newTokenStore())
-	if e != nil {
-		token = ""
-	} // A corrupt/missing token must not block public APIs.
+	token, _, credentialErr := activeToken(newTokenStore())
+	// Do not silently discard Keychain errors: the Opening Explorer needs a token.
 	return &generator{c: c, client: &http.Client{Timeout: 35 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) > 0 && req.URL.Hostname() != via[0].URL.Hostname() {
 			return errors.New("cross-host redirect blocked")
 		}
 		return nil
-	}}, cache: dir, onProgress: cb, warnings: map[string]bool{}, token: token, evalMemo: map[string]evalResult{}, explorerMemo: map[string]explorerData{}}
+	}}, cache: dir, onProgress: cb, warnings: map[string]bool{}, token: token, credentialError: credentialErr, evalMemo: map[string]evalResult{}, explorerMemo: map[string]explorerData{}}
 }
 func (g *generator) warn(s string) { g.warnings[s] = true }
+func (g *generator) progress(nodes int, message string) {
+	g.progressNodes = nodes
+	if g.onProgress != nil {
+		g.onProgress(nodes, g.requests, message)
+	}
+}
 func (g *generator) get(ctx context.Context, service, endpoint string, params url.Values) ([]byte, error) {
 	cacheParams := url.Values{}
 	for k, vals := range params {
@@ -311,6 +322,9 @@ func (g *generator) get(ctx context.Context, service, endpoint string, params ur
 		// Expired cloud miss: request the position again.
 	}
 	for attempt := 0; attempt < 4; attempt++ {
+		if err := g.waitForLichess(ctx, service); err != nil {
+			return nil, err
+		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -326,19 +340,26 @@ func (g *generator) get(ctx context.Context, service, endpoint string, params ur
 		}
 		g.last = time.Now()
 		g.requests++
+		g.progress(g.progressNodes, fmt.Sprintf("Contacting Lichess %s · request %d · attempt %d/4", service, g.requests, attempt+1))
+		log.Printf("ChessGrowth: %s request %d attempt %d/4 started", service, g.requests, attempt+1)
 		req, e := http.NewRequestWithContext(ctx, "GET", endpoint+"?"+params.Encode(), nil)
 		if e != nil {
 			return nil, e
 		}
 		req.Header.Set("User-Agent", "ChessGrowth/0.1 (+https://github.com/MrPiada/ChessGrowth)")
-		// Never disclose the user's credential to explorer.lichess.org or any other host.
-		if req.URL.Hostname() == "lichess.org" && g.token != "" {
+		// Lichess now requires authentication for its official Opening Explorer.
+		// Only send credentials to the two explicitly allowed Lichess hosts;
+		// never forward the token to arbitrary hosts.
+		host := req.URL.Hostname()
+		if g.token != "" && (host == "lichess.org" || (host == "explorer.lichess.org" && service == "explorer")) {
 			req.Header.Set("Authorization", "Bearer "+g.token)
 		}
 		resp, e := g.client.Do(req)
 		if e != nil {
+			log.Printf("ChessGrowth: %s request failed: %v", service, e)
 			return nil, fmt.Errorf("%s: %w", service, e)
 		}
+		log.Printf("ChessGrowth: %s response HTTP %d", service, resp.StatusCode)
 		raw, e := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
 		resp.Body.Close()
 		if e != nil {
@@ -358,18 +379,24 @@ func (g *generator) get(ctx context.Context, service, endpoint string, params ur
 			}
 			return nil, fmt.Errorf("%s HTTP 404", service)
 		case 429, 502, 503, 504:
-			d := time.Duration(2<<attempt) * time.Second
 			if resp.StatusCode == 429 {
-				d = 60 * time.Second
+				d := g.recordRateLimit(service, resp.Header)
+				g.progress(g.progressNodes, fmt.Sprintf("Lichess %s HTTP 429 · cooldown %s", service, d.Round(time.Second)))
+				log.Printf("ChessGrowth: %s HTTP 429; circuit opened for %s (no retry)", service, d)
+				return nil, fmt.Errorf("%s HTTP 429: paused until %s; retry later", service, g.cooldown.Until.Format(time.RFC3339))
 			}
-			if x, e := strconv.Atoi(resp.Header.Get("Retry-After")); e == nil && x > 0 && x < 120 {
-				if resp.StatusCode == 429 {
-					d = time.Duration(max(x, 60)) * time.Second
-				} else {
-					d = time.Duration(x) * time.Second
-				}
+			// Cloud is optional in Hybrid mode; do not stall local Stockfish
+			// behind repeated 502/503/504 responses.
+			if service == "cloud" {
+				return nil, fmt.Errorf("cloud HTTP %d: falling back if local engine is enabled", resp.StatusCode)
+			}
+			d := time.Duration(2<<attempt) * time.Second
+			if attempt == 3 {
+				return nil, fmt.Errorf("%s HTTP %d after four attempts", service, resp.StatusCode)
 			}
 			g.warn(fmt.Sprintf("Lichess rate limit/service error (HTTP %d): requests retried.", resp.StatusCode))
+			g.progress(g.progressNodes, fmt.Sprintf("Lichess %s HTTP %d · retrying in %s (you can Stop generation)", service, resp.StatusCode, d))
+			log.Printf("ChessGrowth: %s HTTP %d; waiting %s before retry", service, resp.StatusCode, d)
 			timer := time.NewTimer(d)
 			select {
 			case <-ctx.Done():
@@ -439,20 +466,33 @@ func (g *generator) evalUncached(ctx context.Context, fen string) (evalResult, e
 	if g.c.EngineMode == "practical" {
 		return evalResult{}, nil
 	}
+	// Persistent cache first, including Hybrid mode: no network or engine needed.
+	if g.c.EngineMode == "hybrid" || g.c.EngineMode == "local" {
+		if x, ok := g.readLocalEvaluation(fen); ok {
+			return x, nil
+		}
+	}
 	local := func() (evalResult, error) {
+		if x, ok := g.readLocalEvaluation(fen); ok {
+			return x, nil
+		}
 		g.localCount++
 		if g.stockfishFn != nil { // Injectable evaluator for deterministic tests.
 			cp, err := g.stockfishFn(ctx, g.c.StockfishPath, fen, g.c.StockfishDepth)
 			if err != nil {
 				return evalResult{}, err
 			}
-			return evalResult{cp: &cp, src: "Stockfish (local)"}, nil
+			x := evalResult{cp: &cp, src: "Stockfish (local)"}
+			g.writeLocalEvaluation(fen, x)
+			return x, nil
 		}
 		cp, mate, err := stockfishEvalDetailed(ctx, g.c.StockfishPath, fen, g.c.StockfishDepth)
 		if err != nil {
 			return evalResult{}, err
 		}
-		return evalResult{cp: &cp, mate: mate, src: "Stockfish (local)"}, nil
+		x := evalResult{cp: &cp, mate: mate, src: "Stockfish (local)"}
+		g.writeLocalEvaluation(fen, x)
+		return x, nil
 	}
 	if g.c.EngineMode == "local" {
 		return local()
@@ -460,6 +500,9 @@ func (g *generator) evalUncached(ctx context.Context, fen string) (evalResult, e
 	q := url.Values{"variant": {"standard"}, "fen": {fen}, "multiPv": {"1"}}
 	g.cloudCount++
 	raw, cloudErr := g.get(ctx, "cloud", "https://lichess.org/api/cloud-eval", q)
+	if errors.Is(cloudErr, errCloudCoolingDown) {
+		g.progress(g.progressNodes, "Cloud rate limited · using Stockfish cache/local engine")
+	}
 	if cloudErr == nil && len(raw) > 0 {
 		var cloud cloudData
 		if err := json.Unmarshal(raw, &cloud); err != nil {
@@ -652,6 +695,7 @@ func isPlayerTurn(b Board, c Config) bool {
 	return (b.White && c.Color == "white") || (!b.White && c.Color == "black")
 }
 func (g *generator) emitLive(r *Report, processed, pending, current int, force bool) {
+	g.progressNodes = len(r.Nodes)
 	if g.onLive == nil {
 		return
 	}
@@ -695,153 +739,173 @@ func (g *generator) emitLive(r *Report, processed, pending, current int, force b
 }
 
 func (g *generator) run(ctx context.Context) (*Report, error) {
+	if g.credentialError != nil {
+		return nil, fmt.Errorf("could not read your saved Lichess token: %w; unlock macOS Keychain or set LICHESS_TOKEN", g.credentialError)
+	}
 	b, e := ParseFEN(g.c.StartFEN)
 	if e != nil {
 		return nil, e
 	}
 	r := newReport(g.c)
 	r.add(-1, b, Move{}, "Starting position")
-	// Record a score for the root, too: it is the baseline for detecting tactical swings.
-	if g.c.EngineMode != "practical" {
-		ev, e := g.eval(ctx, b.FEN())
-		if e == nil {
-			r.Nodes[0].EvalCP = ev.cp
-			r.Nodes[0].EvalMate = ev.mate
-			r.Nodes[0].EvalSource = ev.src
-		}
-		if e != nil {
-			r.Nodes[0].EvalError = e.Error()
-			g.warn("Some positions could not be evaluated; verify Stockfish and the Cloud fallback.")
-		}
-	}
-
-	type task struct {
-		id    int
-		board Board
-	}
-	queue := []task{{0, b}}
-	// Canonical positions form a position DAG. The report still stores move edges,
-	// but reaching a known position adds only a transposition reference: never a
-	// second expansion or another set of requests/evaluations.
+	queue := []int{0}
 	seen := map[string]int{b.Key(): 0}
 	expanded := map[string]bool{}
-	processed := 0
+	processed, evalIndex := 0, 0
+	stage := "grow"
+	if g.c.Resume {
+		if cp, ok := g.readCheckpoint(); ok {
+			r, queue, seen, expanded = cp.Report, cp.Queue, cp.Seen, cp.Expanded
+			processed, stage, evalIndex = cp.Processed, cp.Stage, cp.EvalIndex
+			for _, n := range r.Nodes {
+				if n.Transposition {
+					g.transpositions++
+				}
+			}
+			g.progress(len(r.Nodes), fmt.Sprintf("Resumed previous analysis · %d nodes · phase %s", len(r.Nodes), stage))
+		}
+	} else {
+		g.removeCheckpoint()
+	}
+
+	checkpoint := func(force bool) {
+		// JSON snapshots are bounded-frequency; on cancellation/error always
+		// persist the last fully completed position before returning.
+		if force || (processed > 0 && processed%15 == 0) {
+			if err := g.saveCheckpoint(generationCheckpoint{Report: r, Queue: queue, Seen: seen, Expanded: expanded, Processed: processed, Stage: stage, EvalIndex: evalIndex}); err != nil {
+				g.warn("Could not save resume checkpoint: " + err.Error())
+			}
+		}
+	}
+	checkpoint(true)
 	g.emitLive(r, processed, len(queue), 0, true)
-	for len(queue) > 0 {
+	for stage == "grow" && len(queue) > 0 {
 		if err := ctx.Err(); err != nil {
+			checkpoint(true)
 			return r, err
 		}
-		current := queue[0]
-		queue = queue[1:]
-		processed++
-		n := r.Nodes[current.id]
-		if g.onProgress != nil {
-			g.onProgress(len(r.Nodes), g.requests, fmt.Sprintf("Exploring %s · depth %d · %d nodes", n.SAN, n.Depth, len(r.Nodes)))
+		id := queue[0]
+		n := r.Nodes[id]
+		board, err := ParseFEN(n.FEN)
+		if err != nil {
+			checkpoint(true)
+			return r, err
 		}
+		g.progress(len(r.Nodes), fmt.Sprintf("Growing opening tree · %s · depth %d · %d nodes", n.SAN, n.Depth, len(r.Nodes)))
 		g.emitLive(r, processed, len(queue), n.ID, false)
+		// Do not remove the task from the queue until its expansion completes.
+		// Interrupted API requests can therefore be resumed safely.
 		if n.Depth >= g.c.MaxDepth {
 			n.Reason = "Depth limit"
-			continue
-		}
-		if len(current.board.moves()) == 0 {
+		} else if len(board.moves()) == 0 {
 			n.Reason = "Game over"
-			continue
-		}
-		key := current.board.Key()
-		if expanded[key] { // Safety guard for unusual restored/queued reports.
-			if canonical, ok := seen[key]; ok && canonical != n.ID {
+		} else if expanded[board.Key()] {
+			if canonical, ok := seen[board.Key()]; ok && canonical != n.ID {
 				n.Transposition = true
 				n.TranspositionTo = &canonical
 				n.Reason = fmt.Sprintf("Transposition to node #%d", canonical)
 			}
-			continue
-		}
-		expanded[key] = true
-		data, err := g.explorer(ctx, current.board.FEN())
-		if err != nil {
-			return r, err
-		}
-		if data.Opening != nil && data.Opening.Name != "" {
-			n.OpeningName = data.Opening.Name
-			n.OpeningECO = data.Opening.ECO
-			n.OpeningInherited = false
-		}
-		// The parent move's outcome sample is aligned with this queried position.
-		n.White, n.Draws, n.Black = data.White, data.Draws, data.Black
-		n.Games = data.White + data.Draws + data.Black
-		if data.White+data.Black+data.Draws == 0 {
-			n.Reason = "No Lichess games"
-			continue
-		}
-		candidates, err := chooseMoves(g, ctx, current.board, data)
-		if err != nil {
-			return r, err
-		}
-		if len(candidates) == 0 {
-			n.Reason = "No moves passing minimum sample"
-			continue
-		}
-		for _, x := range candidates {
-			if len(r.Nodes) >= g.c.MaxNodes {
-				r.Truncated = true
-				n.Reason = "Maximum node limit reached"
-				break
+		} else {
+			data, err := g.explorer(ctx, board.FEN())
+			if err != nil {
+				checkpoint(true)
+				return r, err
 			}
-			after := current.board.Apply(x.m)
-			child := r.add(n.ID, after, x.m, "")
-			child.Games = x.n
-			child.Frequency = math.Round(x.freq*10) / 10
-			child.White = x.x.White
-			child.Draws = x.x.Draws
-			child.Black = x.x.Black
-			child.EvalCP = x.cp
-			child.EvalMate = x.mate
-			child.EvalSource = x.src
-			child.OpeningName = n.OpeningName
-			child.OpeningECO = n.OpeningECO
-			child.OpeningInherited = child.OpeningName != ""
-			if x.x.Opening != nil && x.x.Opening.Name != "" {
-				child.OpeningName = x.x.Opening.Name
-				child.OpeningECO = x.x.Opening.ECO
-				child.OpeningInherited = false
+			if data.Opening != nil && data.Opening.Name != "" {
+				n.OpeningName = data.Opening.Name
+				n.OpeningECO = data.Opening.ECO
+				n.OpeningInherited = false
 			}
-			// Evaluate every retained move, including opponent continuations. Previously
-			// only player candidates were evaluated, leaving most opponent nodes blank.
-			if child.EvalCP == nil && g.c.EngineMode != "practical" {
-				ev, evErr := g.eval(ctx, after.FEN())
-				if ctx.Err() != nil {
-					return r, ctx.Err()
-				}
-				if evErr != nil {
-					child.EvalError = evErr.Error()
-					g.warn("Some positions have no score: Cloud and/or local engine failed; see the position inspector.")
-				} else {
-					child.EvalCP = ev.cp
-					child.EvalMate = ev.mate
-					child.EvalSource = ev.src
-				}
-			}
-			// BFS means the first occurrence is at the shallowest depth.
-			// A repeated FEN is represented as an edge to its canonical node.
-			// Its move, statistics and evaluation remain visible/exportable.
-			posKey := after.Key()
-			if canonical, exists := seen[posKey]; exists {
-				child.Transposition = true
-				child.TranspositionTo = &canonical
-				child.Reason = fmt.Sprintf("Transposition to node #%d (already scheduled or explored)", canonical)
-				g.transpositions++
-				// No second expansion, and no duplicated Lichess or Stockfish work.
+			n.White, n.Draws, n.Black = data.White, data.Draws, data.Black
+			n.Games = data.White + data.Draws + data.Black
+			if n.Games == 0 {
+				n.Reason = "No Lichess games"
 			} else {
-				seen[posKey] = child.ID
-				queue = append(queue, task{id: child.ID, board: after})
+				candidates, err := chooseMoves(g, ctx, board, data)
+				if err != nil {
+					checkpoint(true)
+					return r, err
+				}
+				if len(candidates) == 0 {
+					n.Reason = "No moves passing minimum sample"
+				}
+				for _, x := range candidates {
+					if len(r.Nodes) >= g.c.MaxNodes {
+						r.Truncated = true
+						n.Reason = "Maximum node limit reached"
+						break
+					}
+					after := board.Apply(x.m)
+					child := r.add(n.ID, after, x.m, "")
+					child.Games = x.n
+					child.Frequency = math.Round(x.freq*10) / 10
+					child.White, child.Draws, child.Black = x.x.White, x.x.Draws, x.x.Black
+					child.EvalCP, child.EvalMate, child.EvalSource = x.cp, x.mate, x.src
+					child.OpeningName, child.OpeningECO = n.OpeningName, n.OpeningECO
+					child.OpeningInherited = child.OpeningName != ""
+					if x.x.Opening != nil && x.x.Opening.Name != "" {
+						child.OpeningName, child.OpeningECO = x.x.Opening.Name, x.x.Opening.ECO
+						child.OpeningInherited = false
+					}
+					posKey := after.Key()
+					if canonical, exists := seen[posKey]; exists {
+						child.Transposition = true
+						child.TranspositionTo = &canonical
+						child.Reason = fmt.Sprintf("Transposition to node #%d (already scheduled or explored)", canonical)
+						g.transpositions++
+					} else {
+						seen[posKey] = child.ID
+						queue = append(queue, child.ID)
+					}
+				}
 			}
+			// Mark expanded after a fully successful exploration.
+			expanded[board.Key()] = true
 		}
+		queue = queue[1:]
+		processed++
+		checkpoint(false)
 		if r.Truncated {
+			queue = nil
 			break
 		}
 	}
+	if stage == "grow" {
+		stage = "evaluate"
+		evalIndex = 0
+		checkpoint(true)
+	}
+	// Complete all remaining node evaluations *after* building the tree.
+	// Move candidates required for repertoire selection were already scored
+	// during exploration. Opponent replies and the root are handled here.
+	for evalIndex < len(r.Nodes) {
+		if err := ctx.Err(); err != nil {
+			checkpoint(true)
+			return r, err
+		}
+		n := r.Nodes[evalIndex]
+		if g.c.EngineMode != "practical" && n.EvalCP == nil && n.EvalMate == nil {
+			g.progress(len(r.Nodes), fmt.Sprintf("Completing evaluations · %d/%d positions", evalIndex+1, len(r.Nodes)))
+			ev, err := g.eval(ctx, n.FEN)
+			if ctx.Err() != nil {
+				checkpoint(true)
+				return r, ctx.Err()
+			}
+			if err != nil {
+				n.EvalError = err.Error()
+				g.warn("Some positions have no engine score; check Cloud and local engine availability.")
+			} else {
+				n.EvalCP, n.EvalMate, n.EvalSource = ev.cp, ev.mate, ev.src
+			}
+		}
+		g.emitLive(r, processed, len(r.Nodes)-evalIndex-1, n.ID, false)
+		evalIndex++
+		if evalIndex%15 == 0 {
+			checkpoint(true)
+		}
+	}
 	classifyTraps(r)
-	g.emitLive(r, processed, len(queue), max(0, len(r.Nodes)-1), true)
+	g.emitLive(r, processed, 0, max(0, len(r.Nodes)-1), true)
 	for warning := range g.warnings {
 		r.Warnings = append(r.Warnings, warning)
 	}
@@ -850,9 +914,8 @@ func (g *generator) run(ctx context.Context) (*Report, error) {
 		r.Warnings = append(r.Warnings, "Generation stopped at the configured maximum number of nodes.")
 	}
 	r.Finished = time.Now().UTC().Format(time.RFC3339)
-	if g.onProgress != nil {
-		g.onProgress(len(r.Nodes), g.requests, "Generation finished")
-	}
+	g.progress(len(r.Nodes), "Generation finished")
+	g.removeCheckpoint()
 	return r, nil
 }
 

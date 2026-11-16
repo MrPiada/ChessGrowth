@@ -15,7 +15,7 @@
     <button type="button" id="tab-setup" class="tab active" aria-selected="true">01 <span>Setup &amp; Analysis</span></button>
     <button type="button" id="tab-results" class="tab" aria-selected="false">02 <span>Opening Tree</span></button>
   </nav>
-  <div class="top-right"><span id="connection-dot" class="dot"></span><span id="system-status">Ready to configure</span><span class="version" id="app-version">v1.3.0</span><button id="quit-application" type="button" class="mini-btn quit-app-button" title="Stop ChessGrowth and its local server">⏻ Quit application</button></div>
+  <div class="top-right"><span id="connection-dot" class="dot"></span><span id="system-status">Ready to configure</span><span class="version" id="app-version">v1.3.1</span><button id="quit-application" type="button" class="mini-btn quit-app-button" title="Stop ChessGrowth and its local server">⏻ Quit application</button></div>
 </header>
 <main>
 <section id="page-setup" class="page active">
@@ -45,6 +45,7 @@
         </section>
         <section class="surface config-section"><div class="config-heading"><div class="config-number">03</div><div><h2>Branching logic</h2><p>Keep realistic replies, prevent runaway growth.</p></div></div>
           <div class="field wide"><label for="coverage">OPPONENT COVERAGE <b id="coverage-label">85%</b></label><input id="coverage" type="range" min="50" max="100" value="85" step="5"><div class="range-labels"><span>Selective · 50%</span><span>Comprehensive · 100%</span></div></div>
+          <div class="field"><label class="chip" title="Continue an interrupted analysis with the same configuration"><input type="checkbox" id="resume-generation" checked> Resume interrupted analysis</label></div>
           <div class="four-grid"><div class="field"><label for="max-depth">MAX PLY</label><input type="number" id="max-depth" value="12" min="1" max="50"></div><div class="field"><label for="max-nodes">MAX NODES</label><input type="number" id="max-nodes" value="250" min="2" max="5000"></div><div class="field"><label for="min-games">MIN GAMES</label><input type="number" id="min-games" value="10" min="0"></div><div class="field"><label for="delay-ms">DELAY · MS</label><input type="number" id="delay-ms" value="600" min="300" max="20000"></div></div>
         </section>
         <section class="surface config-section"><div class="config-heading"><div class="config-number">04</div><div><h2>Move evaluation</h2><p>Find solid moves with good practical results.</p></div></div>

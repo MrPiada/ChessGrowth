@@ -1,3 +1,13 @@
+## Reliable analysis (v1.3.1)
+
+**Recommended mode:** `Cloud → Stockfish fallback` with Stockfish installed (`brew install stockfish` on macOS, `sudo apt install stockfish` on Ubuntu, or choose a Windows Stockfish executable).
+
+- On Cloud HTTP **429**, ChessGrowth immediately uses the local engine for evaluations and suspends new Cloud requests. It respects a **minimum one-minute Lichess API cooldown** (or a longer `Retry-After`), including across restarts. Opening Explorer still requires Lichess API access when its statistics are not cached.
+- A persistent evaluation cache avoids recomputing unchanged positions. Cache keys include normalized FEN, Stockfish binary signature and engine depth; writes are local and atomic.
+- The first phase builds the opening tree; the second completes missing evaluations. The live progress shows the current phase and cooldown.
+- **Resume interrupted analysis** is enabled by default for matching settings. Uncheck it to discard a previous checkpoint and begin afresh. Checkpoints stay in your user cache, not the Git repository.
+- The Lichess token stays in macOS Keychain (or private per-user storage on other platforms); it is never added to exports.
+
 <div align="center">
   <img src="assets/chessgrowth-icon.png" alt="ChessGrowth" width="108">
 
@@ -78,17 +88,17 @@ Do not commit credentials to Git and grant only the token permissions you need.
 
 ```bash
 brew install go gh python makensis
-./scripts/build-release.sh v1.3.0
+./scripts/build-release.sh v1.3.1
 ```
 
 The build produces macOS Intel/Apple Silicon ZIPs and DMGs, Windows x64 ZIP and (with NSIS) `Setup.exe`, Ubuntu x64/ARM64 `.deb`, Linux TAR.GZ and SHA-256 checksums. A Windows development machine is **not** needed for cross-compilation. Binaries embed the HTML/CSS/JS and SVG chess pieces; executable icons are packaged for the native desktop environments. Stockfish is **not** bundled.
 
-**Publish a release from an existing clone:** after testing and committing the source, tag `v1.3.0` and run:
+**Publish a release from an existing clone:** after testing and committing the source, tag `v1.3.1` and run:
 
 ```bash
-gh release create v1.3.0 dist/ChessGrowth-v1.3.0-* dist/SHA256SUMS.txt \
-  --verify-tag --title "ChessGrowth v1.3.0" \
-  --notes-file RELEASE_NOTES_v1.3.0.md --latest
+gh release create v1.3.1 dist/ChessGrowth-v1.3.1-* dist/SHA256SUMS.txt \
+  --verify-tag --title "ChessGrowth v1.3.1" \
+  --notes-file RELEASE_NOTES_v1.3.1.md --latest
 ```
 
 These installers are **unsigned and unnotarized**. Verify app behavior on the actual operating systems before making a stable release.

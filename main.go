@@ -24,7 +24,7 @@ import (
 
 //go:embed web/* assets/*
 var content embed.FS
-var version = "1.3.0"
+var version = "1.3.1"
 
 type application struct {
 	live                                           []LiveNode
@@ -280,7 +280,7 @@ func (a *application) handlers() http.Handler {
 		ctx, cancel := context.WithCancel(context.Background())
 		a.cancel = cancel
 		a.phase = "running"
-		a.message = "Preparing Lichess requests"
+		a.message = "Loading your saved Lichess token (check macOS Keychain if prompted)"
 		a.lastError = ""
 		a.result = nil
 		a.undo = nil

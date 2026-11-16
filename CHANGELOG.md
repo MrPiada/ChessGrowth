@@ -1,3 +1,10 @@
+## v1.3.1
+
+- Fail fast on Lichess Cloud rate limits and fall back to local Stockfish.
+- Persist API cooldowns, local evaluations and resumable analysis checkpoints.
+- Defer nonessential evaluation until after opening-tree construction.
+- Add visible cooldown countdown and resume control.
+
 ## 1.3.0
 
 - Browser-window lifecycle: close last UI tab to stop server; Quit application button, multiple-tab support, reload grace and safe headless behavior.

@@ -3,9 +3,11 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 const keychainService = "com.chessgrowth.lichess-token"
@@ -15,7 +17,12 @@ type macKeychainStore struct{}
 func newTokenStore() tokenStore              { return macKeychainStore{} }
 func (macKeychainStore) Description() string { return "macOS Keychain" }
 func (macKeychainStore) Load() (string, error) {
-	data, err := exec.Command("security", "find-generic-password", "-a", "ChessGrowth", "-s", keychainService, "-w").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	data, err := exec.CommandContext(ctx, "security", "find-generic-password", "-a", "ChessGrowth", "-s", keychainService, "-w").Output()
+	if ctx.Err() != nil {
+		return "", errors.New("macOS Keychain did not respond within 10 seconds; unlock Keychain Access and retry")
+	}
 	if err != nil {
 		if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 44 {
 			return "", nil
