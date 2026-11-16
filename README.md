@@ -51,6 +51,10 @@ go run .
 
 The setup board always starts with White at the bottom; **Flip board** switches orientation independently of the repertoire color. Set your start position and parameters, then **Generate repertoire**. Once generated, the Opening Tree allows pruning individual branches and exporting the remaining repertoire.
 
+## Generation limits
+
+**Max nodes** defaults to **10,000**, and accepts **2–100,000** nodes. **Max ply** remains an independent limit. Larger node budgets may take hours or longer and consume substantial memory, disk space and API requests; they do not bypass Lichess rate limits. Start with a smaller test before launching a large analysis.
+
 ## Transpositions and caching
 
 ChessGrowth keeps a position index using the first four normalized FEN fields: **pieces, side to move, castling rights and capturable en-passant square**. Move clocks and move numbers are ignored for opening-theory transpositions. Every unique position is **scheduled for expansion at most once**. A second route into it is represented as a transposition link rather than a second subtree; its move is retained in the graph and the exported PGN contains a reference to the canonical node, without copying the complete continuation. Cloud/Stockfish evaluations and Explorer results are also memoized by position during generation; the disk HTTP cache uses the same normalized identity. This optimization is designed for opening repertoire analysis, not for adjudicating 50/75-move draws or move-history-dependent threefold repetitions.
@@ -93,12 +97,12 @@ brew install go gh python makensis
 
 The build produces macOS Intel/Apple Silicon ZIPs and DMGs, Windows x64 ZIP and (with NSIS) `Setup.exe`, Ubuntu x64/ARM64 `.deb`, Linux TAR.GZ and SHA-256 checksums. A Windows development machine is **not** needed for cross-compilation. Binaries embed the HTML/CSS/JS and SVG chess pieces; executable icons are packaged for the native desktop environments. Stockfish is **not** bundled.
 
-**Publish a release from an existing clone:** after testing and committing the source, tag `v1.3.1` and run:
+**Publish a release from an existing clone:** after testing and committing the source, tag `v1.3.2` and run:
 
 ```bash
-gh release create v1.3.1 dist/ChessGrowth-v1.3.1-* dist/SHA256SUMS.txt \
-  --verify-tag --title "ChessGrowth v1.3.1" \
-  --notes-file RELEASE_NOTES_v1.3.1.md --latest
+gh release create v1.3.2 dist/ChessGrowth-v1.3.2-* dist/SHA256SUMS.txt \
+  --verify-tag --title "ChessGrowth v1.3.2" \
+  --notes-file RELEASE_NOTES_v1.3.2.md --latest
 ```
 
 These installers are **unsigned and unnotarized**. Verify app behavior on the actual operating systems before making a stable release.

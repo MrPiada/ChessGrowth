@@ -20,6 +20,11 @@ import (
 	"time"
 )
 
+const (
+	defaultMaxNodes = 10000
+	maximumMaxNodes = 100000
+)
+
 type Config struct {
 	StartFEN        string   `json:"start_fen"`
 	Color           string   `json:"color"`
@@ -41,7 +46,7 @@ type Config struct {
 }
 
 func defaults() Config {
-	return Config{StartFEN: initialFEN, Color: "white", Speeds: []string{"blitz", "rapid"}, Ratings: []int{1800, 2000, 2200}, MaxDepth: 12, MaxNodes: 250, Coverage: 85, MinGames: 10, EngineLines: 3, EngineThreshold: 0.8, EngineMode: "cloud", StockfishDepth: 16, Candidates: 10, DelayMS: 600, Event: "ChessGrowth", Resume: true}
+	return Config{StartFEN: initialFEN, Color: "white", Speeds: []string{"blitz", "rapid"}, Ratings: []int{1800, 2000, 2200}, MaxDepth: 12, MaxNodes: defaultMaxNodes, Coverage: 85, MinGames: 10, EngineLines: 3, EngineThreshold: 0.8, EngineMode: "cloud", StockfishDepth: 16, Candidates: 10, DelayMS: 600, Event: "ChessGrowth", Resume: true}
 }
 func (c *Config) validate() error {
 	if c.StartFEN == "" {
@@ -61,8 +66,8 @@ func (c *Config) validate() error {
 	if c.MaxDepth < 1 || c.MaxDepth > 50 {
 		return errors.New("max depth must be 1–50 half-moves")
 	}
-	if c.MaxNodes < 2 || c.MaxNodes > 5000 {
-		return errors.New("max nodes must be 2–5000")
+	if c.MaxNodes < 2 || c.MaxNodes > maximumMaxNodes {
+		return fmt.Errorf("max nodes must be 2–%d", maximumMaxNodes)
 	}
 	if c.Coverage <= 0 || c.Coverage > 100 {
 		return errors.New("coverage must be >0 and <=100")

@@ -1,3 +1,9 @@
+## v1.3.2
+
+- Raise the maximum configurable node budget from 5,000 to 100,000.
+- Set the default node budget to 10,000 consistently in Go and the browser GUI.
+- Add tests for the expanded validation range.
+
 ## v1.3.1
 
 - Fail fast on Lichess Cloud rate limits and fall back to local Stockfish.

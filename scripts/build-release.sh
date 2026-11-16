@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-VERSION="${1:-v1.3.1}"
+VERSION="${1:-v1.3.2}"
 DIST="${DIST_DIR:-${ROOT}/dist}"
 mkdir -p "$DIST"
 python3 scripts/build_windows_icon.py

@@ -24,7 +24,7 @@ import (
 
 //go:embed web/* assets/*
 var content embed.FS
-var version = "1.3.1"
+var version = "1.3.2"
 
 type application struct {
 	live                                           []LiveNode

@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const initialFEN='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-const state={fen:initialFEN,legal:[],selected:null,history:[],color:'white',flipped:false,tab:'setup',tree:null,nodeID:0,zoom:1,width:850,height:450,coords:{},lastPhase:'idle',lastToast:0,depthLimit:12,collapseDepth:8,expanded:new Set(),collapsed:new Set(),nodeBudget:250,progressStamp:0};
+const state={fen:initialFEN,legal:[],selected:null,history:[],color:'white',flipped:false,tab:'setup',tree:null,nodeID:0,zoom:1,width:850,height:450,coords:{},lastPhase:'idle',lastToast:0,depthLimit:12,collapseDepth:8,expanded:new Set(),collapsed:new Set(),nodeBudget:10000,progressStamp:0};
 function esc(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(path,opts={}){
  const res=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});
