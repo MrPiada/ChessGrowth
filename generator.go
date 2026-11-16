@@ -689,6 +689,7 @@ type LiveNode struct {
 	Depth           int    `json:"depth"`
 	Ply             int    `json:"ply"`
 	SAN             string `json:"san"`
+	FEN             string `json:"fen,omitempty"` // Only the currently analyzed node carries its FEN.
 	Player          bool   `json:"player"`
 	EvalCP          *int   `json:"eval_cp"`
 	EvalMate        *int   `json:"eval_mate,omitempty"`
@@ -738,7 +739,13 @@ func (g *generator) emitLive(r *Report, processed, pending, current int, force b
 				player = isPlayerTurn(b, g.c)
 			}
 		}
-		live = append(live, LiveNode{ID: n.ID, Parent: n.Parent, Depth: n.Depth, Ply: n.Ply, SAN: n.SAN, Player: player, EvalCP: n.EvalCP, EvalMate: n.EvalMate, EvalSource: n.EvalSource, TranspositionTo: n.TranspositionTo})
+		// Send only the active position FEN. This keeps the live payload bounded
+		// even for very large repertoires with many cached transpositions.
+		currentFEN := ""
+		if n.ID == current {
+			currentFEN = n.FEN
+		}
+		live = append(live, LiveNode{ID: n.ID, Parent: n.Parent, Depth: n.Depth, Ply: n.Ply, SAN: n.SAN, FEN: currentFEN, Player: player, EvalCP: n.EvalCP, EvalMate: n.EvalMate, EvalSource: n.EvalSource, TranspositionTo: n.TranspositionTo})
 	}
 	g.onLive(live, processed, pending, current)
 }
@@ -891,6 +898,9 @@ func (g *generator) run(ctx context.Context) (*Report, error) {
 		n := r.Nodes[evalIndex]
 		if g.c.EngineMode != "practical" && n.EvalCP == nil && n.EvalMate == nil {
 			g.progress(len(r.Nodes), fmt.Sprintf("Completing evaluations · %d/%d positions", evalIndex+1, len(r.Nodes)))
+			// Show the FEN while Stockfish/Cloud is analyzing it, not just after
+			// the request has completed. Existing throttling limits UI updates.
+			g.emitLive(r, processed, len(r.Nodes)-evalIndex-1, n.ID, false)
 			ev, err := g.eval(ctx, n.FEN)
 			if ctx.Err() != nil {
 				checkpoint(true)

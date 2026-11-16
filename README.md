@@ -19,11 +19,14 @@
 
 ## Interface
 
+**New in v1.3.3:** the live growth view now has an automatically updated, view-only **Current Position** chessboard beside the branching graph. It shows the actual FEN currently being processed, side to move, last SAN move and any available engine score (White POV). The board uses the same stable 64-square SVG renderer as the setup board, with the selected repertoire color at the bottom. No extra engine calls or Lichess requests are required.
+
+
 **1. Setup:** a fixed 64-square, single-SVG chessboard with bundled vector pieces (no layout shifts), Go-validated legal moves, editable FEN/SAN/UCI, repertoire color, Lichess filters, engine settings and a persistent optional API token.
 
 ![ChessGrowth setup](docs/images/setup.png)
 
-**2. Live generation:** watch the labeled move tree grow in real time. Every plotted position shows its SAN move (and move number); green means favorable for your selected repertoire color, red means unfavorable, and gray means no evaluation. Scroll within the preview to explore the graph. Track unique expansions, transpositions reused, requests, evaluations and node-budget use.
+**2. Live generation:** watch the labeled move tree grow while a synchronized chessboard displays the position currently under analysis. Every plotted position shows its SAN move (and move number); green means favorable for your selected repertoire color, red means unfavorable, and gray means no evaluation. Scroll within the preview to explore the graph. Track unique expansions, transpositions reused, requests, evaluations and node-budget use.
 
 ![Live repertoire growth](docs/images/progress.png)
 
@@ -80,7 +83,7 @@ Opening names come from Lichess Opening Explorer when available. When a child ha
 
 ## Lichess token
 
-Public Explorer and Cloud queries usually work **without a token**. If desired, paste a token into **Setup → Move evaluation → Lichess token** and click **Save**. It persists across app restarts and updates for the same OS user; **Forget** deletes it. Tokens are never returned by the UI, included in PGNs, or sent to `explorer.lichess.org`.
+Public Explorer and Cloud queries usually work **without a token**. If desired, paste a token into **Setup → Move evaluation → Lichess token** and click **Save**. It persists across app restarts and updates for the same OS user; **Forget** deletes it. Tokens are never returned by the UI or included in PGNs. They are sent only to the explicitly approved hosts `lichess.org` and `explorer.lichess.org` (Explorer authentication), never to arbitrary destinations.
 
 - **macOS:** the user Keychain. The `security` utility receives the secret briefly as a process argument during saving.
 - **Windows/Linux:** a user-private config file; *not encrypted at rest* (mode 0600 where supported).
@@ -92,17 +95,17 @@ Do not commit credentials to Git and grant only the token permissions you need.
 
 ```bash
 brew install go gh python makensis
-./scripts/build-release.sh v1.3.1
+./scripts/build-release.sh v1.3.3
 ```
 
 The build produces macOS Intel/Apple Silicon ZIPs and DMGs, Windows x64 ZIP and (with NSIS) `Setup.exe`, Ubuntu x64/ARM64 `.deb`, Linux TAR.GZ and SHA-256 checksums. A Windows development machine is **not** needed for cross-compilation. Binaries embed the HTML/CSS/JS and SVG chess pieces; executable icons are packaged for the native desktop environments. Stockfish is **not** bundled.
 
-**Publish a release from an existing clone:** after testing and committing the source, tag `v1.3.2` and run:
+**Publish a release from an existing clone:** after testing and committing the source, tag `v1.3.3` and run:
 
 ```bash
-gh release create v1.3.2 dist/ChessGrowth-v1.3.2-* dist/SHA256SUMS.txt \
-  --verify-tag --title "ChessGrowth v1.3.2" \
-  --notes-file RELEASE_NOTES_v1.3.2.md --latest
+gh release create v1.3.3 dist/ChessGrowth-v1.3.3-* dist/SHA256SUMS.txt \
+  --verify-tag --title "ChessGrowth v1.3.3" \
+  --notes-file RELEASE_NOTES_v1.3.3.md --latest
 ```
 
 These installers are **unsigned and unnotarized**. Verify app behavior on the actual operating systems before making a stable release.

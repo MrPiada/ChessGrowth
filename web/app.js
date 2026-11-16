@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const initialFEN='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-const state={fen:initialFEN,legal:[],selected:null,history:[],color:'white',flipped:false,tab:'setup',tree:null,nodeID:0,zoom:1,width:850,height:450,coords:{},lastPhase:'idle',lastToast:0,depthLimit:12,collapseDepth:8,expanded:new Set(),collapsed:new Set(),nodeBudget:10000,progressStamp:0};
+const state={fen:initialFEN,legal:[],selected:null,history:[],color:'white',flipped:false,tab:'setup',tree:null,nodeID:0,zoom:1,width:850,height:450,coords:{},lastPhase:'idle',lastToast:0,depthLimit:12,collapseDepth:8,expanded:new Set(),collapsed:new Set(),nodeBudget:10000,progressStamp:0,liveBoardFEN:'',liveBoardFlipped:false};
 function esc(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(path,opts={}){
  const res=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});
@@ -99,6 +99,9 @@ async function start(){try{
  state.tree=null;state.didFit=false;state.nodeBudget=cfg.max_nodes;
  $('analysis-heading').textContent='Growing your repertoire';$('analysis-message').textContent='Retrieving positions and evaluating candidate moves…';
  $('generate').disabled=true;$('cancel-analysis').hidden=false;$('progress-overlay').hidden=false;
+ state.liveBoardFlipped=state.color==='black';
+ state.liveBoardFEN='';
+ renderLivePosition({current_fen:state.fen,current_move:'Start',current_ply:0});
  await updateProgress();toast('Generation started. Watch the tree grow.');
  }catch(e){toast(e.message,true)}
 }
@@ -151,6 +154,29 @@ function liveTreeRender(d){
   }
  }
 }
+// The current FEN is supplied by Go from the same node as the highlighted
+// graph point; the board is view-only and uses the fixed 800x800 SVG renderer.
+// Updating only when the FEN changes avoids flicker and layout work.
+function renderLivePosition(d){
+ const fen=d.current_fen||state.fen||initialFEN;
+ const board=$('live-position-board');
+ if(fen!==state.liveBoardFEN){
+  board.innerHTML=boardMarkup(fen,state.liveBoardFlipped,false);
+  state.liveBoardFEN=fen;
+ }
+ const turn=fen.split(' ')[1]==='b'?'Black to move':'White to move';
+ $('live-position-turn').textContent=turn;
+ const ply=Number(d.current_ply)||0;
+ const san=d.current_move&&d.current_move!=='Start'?d.current_move:'';
+ const moveNumber=ply>0?Math.ceil(ply/2)+(ply%2?'.':'...'):'';
+ const label=san?moveNumber+san:'Starting position';
+ $('live-position-move').textContent=label;
+ board.setAttribute('aria-label',`${label}; ${turn}`);
+ const mate=d.current_eval_mate;
+ const cp=d.current_eval_cp;
+ $('live-position-eval').textContent=mate!=null?`Eval #${mate} · White POV`:cp!=null?`Eval ${(cp/100).toFixed(2)} · White POV`:'Evaluation pending / unavailable';
+ $('live-position-source').textContent=d.current_eval_source?`Source: ${d.current_eval_source}`:'Position currently being explored';
+}
 async function updateProgress(){
  const d=await api('/api/progress');if(d.phase!=='running')return;
  const parsed=d.tree||[],depth=parsed.reduce((m,n)=>Math.max(m,n.depth),0);
@@ -167,6 +193,7 @@ async function updateProgress(){
  const used=Math.min(100,Math.round(100*d.nodes/Math.max(1,state.nodeBudget)));
  $('budget-percent').textContent=used+'%';$('budget-fill').style.width=used+'%';
  liveTreeRender(d);
+ renderLivePosition(d);
 }
 async function poll(){try{
  const d=await api('/api/status');state.lastPhase=d.phase;

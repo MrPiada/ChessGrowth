@@ -15,7 +15,7 @@
     <button type="button" id="tab-setup" class="tab active" aria-selected="true">01 <span>Setup &amp; Analysis</span></button>
     <button type="button" id="tab-results" class="tab" aria-selected="false">02 <span>Opening Tree</span></button>
   </nav>
-  <div class="top-right"><span id="connection-dot" class="dot"></span><span id="system-status">Ready to configure</span><span class="version" id="app-version">v1.3.1</span><button id="quit-application" type="button" class="mini-btn quit-app-button" title="Stop ChessGrowth and its local server">⏻ Quit application</button></div>
+  <div class="top-right"><span id="connection-dot" class="dot"></span><span id="system-status">Ready to configure</span><span class="version" id="app-version">v1.3.3</span><button id="quit-application" type="button" class="mini-btn quit-app-button" title="Stop ChessGrowth and its local server">⏻ Quit application</button></div>
 </header>
 <main>
 <section id="page-setup" class="page active">
@@ -67,7 +67,18 @@
     <div class="progress-bar-title"><b>Explored search frontier</b><span id="frontier-percent">—</span></div><div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
     <div class="progress-bar-title budget"><b>Node budget used</b><span id="budget-percent">0%</span></div><div class="progress-track budget"><div id="budget-fill" class="progress-fill budget-fill"></div></div>
     <div class="live-tree-title"><b>Branching preview</b><span><i class="legend-good"></i> Favorable · <i class="legend-bad"></i> Unfavorable · <i class="legend-unknown"></i> Unscored · ↪ Transposition</span></div>
-    <div class="live-tree-container" id="live-tree-viewport"><svg id="live-tree-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 290" role="img" aria-label="Live expanding repertoire graph"></svg></div>
+    <div class="live-preview-layout">
+      <div class="live-tree-container" id="live-tree-viewport"><svg id="live-tree-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 290" role="img" aria-label="Live expanding repertoire graph"></svg></div>
+      <aside class="live-position-panel" aria-label="Position currently under analysis">
+        <div class="live-position-head"><span class="live-position-eyebrow">CURRENT POSITION</span><span id="live-position-turn" class="live-position-turn">White to move</span></div>
+        <div id="live-position-board" class="live-position-board" role="img" aria-label="Starting chess position"></div>
+        <div class="live-position-details">
+          <strong id="live-position-move">Starting position</strong>
+          <span id="live-position-eval">Engine evaluation pending</span>
+          <small id="live-position-source">Following the currently explored branch</small>
+        </div>
+      </aside>
+    </div>
     <p class="progress-caption">Frontier percentage is a live estimate, not an exact completion time. The tree may finish before reaching the node limit.</p>
    </div>
   </div>

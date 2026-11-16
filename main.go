@@ -24,7 +24,7 @@ import (
 
 //go:embed web/* assets/*
 var content embed.FS
-var version = "1.3.2"
+var version = "1.3.3"
 
 type application struct {
 	live                                           []LiveNode
@@ -257,7 +257,19 @@ func (a *application) handlers() http.Handler {
 		}
 		a.mu.Lock()
 		defer a.mu.Unlock()
-		respond(w, map[string]any{"phase": a.phase, "nodes": a.nodes, "requests": a.requests, "processed": a.processed, "pending": a.pending, "current": a.current, "local_evaluations": a.localEvaluations, "cloud_lookups": a.cloudLookups, "transpositions": a.transpositions, "tree": a.live})
+		// A single current FEN is exposed independently of the bounded graph
+		// preview. No second chess state is maintained by the browser.
+		var currentFEN, currentMove, currentSource string
+		var currentPly int
+		var currentCP, currentMate *int
+		for _, node := range a.live {
+			if node.ID == a.current && node.FEN != "" {
+				currentFEN, currentMove, currentPly = node.FEN, node.SAN, node.Ply
+				currentCP, currentMate, currentSource = node.EvalCP, node.EvalMate, node.EvalSource
+				break
+			}
+		}
+		respond(w, map[string]any{"phase": a.phase, "nodes": a.nodes, "requests": a.requests, "processed": a.processed, "pending": a.pending, "current": a.current, "current_fen": currentFEN, "current_move": currentMove, "current_ply": currentPly, "current_eval_cp": currentCP, "current_eval_mate": currentMate, "current_eval_source": currentSource, "local_evaluations": a.localEvaluations, "cloud_lookups": a.cloudLookups, "transpositions": a.transpositions, "tree": a.live})
 	})
 	mux.HandleFunc("/api/start", func(w http.ResponseWriter, r *http.Request) {
 		if !method(w, r, "POST") {

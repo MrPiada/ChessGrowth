@@ -1,3 +1,11 @@
+## v1.3.3 — Current position preview
+
+- Add live view-only SVG chessboard beside the branching graph while generating a repertoire.
+- Transmit only the current node FEN and its SAN/ply/evaluation in the progress API.
+- Keep board square sizes stable and rotate it to the selected repertoire color.
+- Show side-to-move and available evaluation without additional engine calls.
+- Preserve the responsive, non-page-scrolling progress dialog.
+
 ## v1.3.2
 
 - Raise the maximum configurable node budget from 5,000 to 100,000.
